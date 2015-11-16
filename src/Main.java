@@ -178,7 +178,7 @@ public class Main implements ActionListener {
             while (!quit)
             {
                 System.out.print("\n\nPlease choose one of the following: \n");
-                System.out.print("1.  Insert non-book item\n");
+                System.out.print("1.  Insert item\n");
                 System.out.print("2.  Insert book item\n");
                 System.out.print("5.  Quit\n>> ");
 
@@ -189,7 +189,7 @@ public class Main implements ActionListener {
                 switch(choice)
                 {
                     case 1:
-                        insertNonBook();
+                        insertItem();
                         break;
                     case 2:
                         insertBook();
@@ -225,12 +225,167 @@ public class Main implements ActionListener {
         }
     }
 
+    public Tuple<PreparedStatement, String> getItemPreparedStatement() {
+        String             upc = null;
+        float              sellingPrice;
+        int                stock;
+        String             taxable;
+        PreparedStatement ps = null;
+
+        try {
+            ps = con.prepareStatement("INSERT INTO item VALUES (?,?,?,?");
+
+
+            System.out.print("\nItem UPC: ");
+            upc = in.readLine();
+            ps.setString(1, upc);
+
+            System.out.print("\nItem selling price: ");
+            sellingPrice = Float.parseFloat(in.readLine());
+            ps.setFloat(2, sellingPrice);
+
+            System.out.print("\nItem Stock: ");
+            stock = Integer.parseInt(in.readLine());
+
+            ps.setInt(3, stock);
+
+            System.out.print("\nIs Item taxable? (y/n): ");
+            taxable = in.readLine();
+            ps.setString(4, taxable);
+
+        }
+        catch(IOException ex) {
+            System.out.println("IOException! Message: " + ex.getMessage());
+        }
+        catch(SQLException ex) {
+            System.out.println("SQLException, Message: " + ex.getMessage());
+        }
+
+        return new Tuple<>(ps, upc);
+    }
+
+    public PreparedStatement getBookItemPreparedStatement(String upc) {
+        String title;
+        String publisher;
+        String flagText;
+        PreparedStatement ps = null;
+
+
+        try {
+            ps = con.prepareStatement("INSERT INTO book VALUES (?,?,?,?)");
+
+            ps.setString(1, upc);
+
+            System.out.print("\nBook title: ");
+            title = in.readLine();
+            ps.setString(2, title);
+
+            System.out.print("\nBook publisher: ");
+            publisher = in.readLine();
+            ps.setString(3, publisher);
+
+            System.out.print("\nIs the book a textbook? (y/n): ");
+            flagText = in.readLine();
+            ps.setString(4, flagText);
+
+        }
+        catch(IOException ex) {
+            System.out.println("IOException! Message: " + ex.getMessage());
+        }
+        catch(SQLException ex) {
+            System.out.println("SQLException, Message: " + ex.getMessage());
+        }
+
+        return ps;
+    }
+
+    public void insertItem() {
+        boolean back = false;
+        int choice;
+        PreparedStatement ps;
+
+        try {
+            while (!back) {
+                System.out.print("\n\nPlease choose one of the following: \n");
+                System.out.print("1.  Insert item\n");
+                System.out.print("2.  Insert book item\n");
+                System.out.print("3.  Back\n");
+
+                choice = Integer.parseInt(in.readLine());
+
+                switch(choice) {
+                    case 1:
+                        Tuple<PreparedStatement, String> itemPS = getItemPreparedStatement();
+                        executeStatement(itemPS.x, "item");
+                        break;
+                    case 2:
+                        Tuple<PreparedStatement, String> itemPS2 = getItemPreparedStatement();
+                        PreparedStatement bookPS = getBookItemPreparedStatement(itemPS2.y);
+                        boolean success = executeStatement(itemPS2.x, "item");
+                        if(success) {
+                            executeStatement(bookPS, "book");
+                        }
+                        break;
+                    case 3:
+                        back = true;
+                }
+            }
+        }
+        catch(IOException ex) {
+            System.out.println("IOException! Message: " + ex.getMessage());
+        }
+
+    }
+
+    public boolean executeStatement(PreparedStatement ps, String tableName) {
+        boolean success = true;
+        String beforeRelation = getRelationPrint(tableName);
+
+        try {
+            ps.executeUpdate();
+            con.commit();
+
+            ps.close();
+
+            System.out.println("Success.");
+            System.out.println(tableName + " relation; BEFORE:");
+            System.out.print(beforeRelation);
+            System.out.println(tableName + " relation; AFTER");
+            System.out.print(getRelationPrint(tableName));
+        }
+        catch (SQLException ex) {
+            // Failed - likely due to primary key constraint.
+            System.out.println("Message: " + ex.getMessage());
+
+            System.out.println("Cancelled.");
+            System.out.println(tableName + " relation; BEFORE:");
+            System.out.print(beforeRelation);
+
+            try
+            {
+                // undo the insert
+                success = false;
+                con.rollback();
+                System.out.println(tableName + " relation; AFTER:");
+                System.out.print(getRelationPrint(tableName));
+
+            }
+            catch (SQLException ex2)
+            {
+                System.out.println("Message: " + ex2.getMessage());
+                System.exit(-1);
+            }
+        }
+        return success;
+    }
+
     public void insertNonBook() {
         int                upc;
         float              sellingPrice;
         int                stock;
         String             taxable;
         PreparedStatement  ps;
+        String beforeRelation = getRelationPrint("item");
 
         try
         {
@@ -259,6 +414,12 @@ public class Main implements ActionListener {
             con.commit();
 
             ps.close();
+
+            System.out.println("Success.");
+            System.out.println("Item relation; BEFORE:");
+            System.out.print(beforeRelation);
+            System.out.println("Item relation; AFTER");
+            System.out.print(getRelationPrint("item"));
         }
         catch (IOException e)
         {
@@ -266,11 +427,20 @@ public class Main implements ActionListener {
         }
         catch (SQLException ex)
         {
+            // Failed - likely due to primary key constraint.
             System.out.println("Message: " + ex.getMessage());
+
+            System.out.println("Cancelled.");
+            System.out.println("Item relation; BEFORE:");
+            System.out.print(beforeRelation);
+
             try
             {
                 // undo the insert
                 con.rollback();
+                System.out.println("Item relation; AFTER:");
+                System.out.print(getRelationPrint("item"));
+
             }
             catch (SQLException ex2)
             {
@@ -282,6 +452,41 @@ public class Main implements ActionListener {
 
     public void insertBook() {
         // TODO: Implement.
+    }
+
+    public String getRelationPrint(String tableName) {
+        Statement statement;
+        ResultSet rs;
+        StringBuilder sb = new StringBuilder();
+
+        try {
+            statement = con.createStatement();
+            rs = statement.executeQuery("SELECT * FROM " + tableName);
+
+            ResultSetMetaData resultSetMetaData = rs.getMetaData();
+
+            int numCols = resultSetMetaData.getColumnCount();
+            sb.append("\n");
+
+            for(int i=1; i<=numCols; i++) {
+                sb.append(String.format("%-15s", resultSetMetaData.getColumnName(i)));
+            }
+
+            sb.append("\n");
+
+            while(rs.next()) {
+                for(int i=1; i<=numCols; i++) {
+                    sb.append(String.format("%-15s", rs.getString(i)));
+                }
+                sb.append("\n");
+            }
+
+            sb.append("\n");
+        }
+        catch(SQLException ex) {
+            System.out.println("Exception at getRelationPrint, Message: " + ex.getMessage());
+        }
+        return sb.toString();
     }
 
 
