@@ -179,7 +179,7 @@ public class Main implements ActionListener {
             {
                 System.out.print("\n\nPlease choose one of the following: \n");
                 System.out.print("1.  Insert item\n");
-                System.out.print("2.  Insert book item\n");
+                System.out.print("2.  Remove item\n");
                 System.out.print("5.  Quit\n>> ");
 
                 choice = Integer.parseInt(in.readLine());
@@ -192,7 +192,7 @@ public class Main implements ActionListener {
                         insertItem();
                         break;
                     case 2:
-                        insertBook();
+                        deleteItem();
                         break;
                     case 5:
                         quit = true;
@@ -337,6 +337,98 @@ public class Main implements ActionListener {
 
     }
 
+    public void deleteItem() {
+        String upc = null;
+        PreparedStatement ps;
+        String beforeRelation = getRelationPrint("item");
+
+        System.out.print("\nItem UPC: ");
+        try {
+            upc = in.readLine();
+        }
+        catch(IOException ex) {
+            System.out.println("IOException! Message: " + ex.getMessage());
+            System.exit(-1);
+        }
+
+        boolean canDelete = checkCanDeleteItem(upc);
+
+        if(!canDelete) {
+            printBeforeAfter("Cancelled.", "item", beforeRelation);
+            return;
+        }
+
+        try {
+            ps = con.prepareStatement("DELETE FROM item WHERE upc = '" + upc + "'");
+
+            int rowCount = ps.executeUpdate();
+
+            if(rowCount == 0) {
+                printBeforeAfter("Cancelled.", "item", beforeRelation);
+            }
+
+            con.commit();
+            ps.close();
+
+            printBeforeAfter("Success.", "item", beforeRelation);
+
+            deleteBook(upc);
+        }
+        catch(SQLException ex) {
+            try {
+                con.rollback();
+                printBeforeAfter("Cancelled.", "item", beforeRelation);
+            }
+            catch (SQLException ex2) {
+                System.out.println("Message: " + ex2.getMessage());
+                System.exit(-1);
+            }
+        }
+    }
+
+    public boolean checkCanDeleteItem(String upc) {
+        Statement statement;
+        ResultSet rs;
+
+        try {
+            statement = con.createStatement();
+            rs = statement.executeQuery("SELECT stock FROM item WHERE upc = '" + upc + "'");
+
+            if(rs.next()) {
+                int stock = rs.getInt(1);
+
+                if(stock == 0) {
+                    return true;
+                }
+
+            }
+        }
+        catch(SQLException ex) {
+            System.out.println("Exception at getRelationPrint, Message: " + ex.getMessage());
+        }
+
+        return false;
+    }
+
+    public void deleteBook(String upc) {
+        try {
+            PreparedStatement ps = con.prepareStatement("DELETE FROM book WHERE book_upc = '" + upc + "'");
+            ps.executeUpdate();
+            con.commit();
+            ps.close();
+        }
+        catch(SQLException ex) {
+            try {
+                con.rollback();
+            }
+            catch(SQLException ex2) {
+                System.out.println("Message: " + ex2.getMessage());
+                System.exit(-1);
+            }
+        }
+    }
+
+
     public boolean executeStatement(PreparedStatement ps, String tableName) {
         boolean success = true;
         String beforeRelation = getRelationPrint(tableName);
@@ -346,28 +438,17 @@ public class Main implements ActionListener {
             con.commit();
 
             ps.close();
-
-            System.out.println("Success.");
-            System.out.println(tableName + " relation; BEFORE:");
-            System.out.print(beforeRelation);
-            System.out.println(tableName + " relation; AFTER");
-            System.out.print(getRelationPrint(tableName));
+            printBeforeAfter("Success", tableName, beforeRelation);
         }
         catch (SQLException ex) {
             // Failed - likely due to primary key constraint.
             System.out.println("Message: " + ex.getMessage());
-
-            System.out.println("Cancelled.");
-            System.out.println(tableName + " relation; BEFORE:");
-            System.out.print(beforeRelation);
-
             try
             {
                 // undo the insert
                 success = false;
                 con.rollback();
-                System.out.println(tableName + " relation; AFTER:");
-                System.out.print(getRelationPrint(tableName));
+                printBeforeAfter("Cancelled.", "item", beforeRelation);
 
             }
             catch (SQLException ex2)
@@ -377,81 +458,6 @@ public class Main implements ActionListener {
             }
         }
         return success;
-    }
-
-    public void insertNonBook() {
-        int                upc;
-        float              sellingPrice;
-        int                stock;
-        String             taxable;
-        PreparedStatement  ps;
-        String beforeRelation = getRelationPrint("item");
-
-        try
-        {
-            ps = con.prepareStatement("INSERT INTO item VALUES (?,?,?,?)");
-
-            System.out.print("\nItem UPC: ");
-            upc = Integer.parseInt(in.readLine());
-            ps.setInt(1, upc);
-
-            System.out.print("\nItem selling price: ");
-            sellingPrice = Float.parseFloat(in.readLine());
-            ps.setFloat(2, sellingPrice);
-
-            System.out.print("\nItem Stock: ");
-            stock = Integer.parseInt(in.readLine());
-
-            ps.setInt(3, stock);
-
-            System.out.print("\nIs Item taxable? (y/n): ");
-            taxable = in.readLine();
-            ps.setString(4, taxable);
-
-            ps.executeUpdate();
-
-            // commit work
-            con.commit();
-
-            ps.close();
-
-            System.out.println("Success.");
-            System.out.println("Item relation; BEFORE:");
-            System.out.print(beforeRelation);
-            System.out.println("Item relation; AFTER");
-            System.out.print(getRelationPrint("item"));
-        }
-        catch (IOException e)
-        {
-            System.out.println("IOException!");
-        }
-        catch (SQLException ex)
-        {
-            // Failed - likely due to primary key constraint.
-            System.out.println("Message: " + ex.getMessage());
-
-            System.out.println("Cancelled.");
-            System.out.println("Item relation; BEFORE:");
-            System.out.print(beforeRelation);
-
-            try
-            {
-                // undo the insert
-                con.rollback();
-                System.out.println("Item relation; AFTER:");
-                System.out.print(getRelationPrint("item"));
-
-            }
-            catch (SQLException ex2)
-            {
-                System.out.println("Message: " + ex2.getMessage());
-                System.exit(-1);
-            }
-        }
-    }
-
-    public void insertBook() {
-        // TODO: Implement.
     }
 
     public String getRelationPrint(String tableName) {
@@ -487,6 +493,14 @@ public class Main implements ActionListener {
             System.out.println("Exception at getRelationPrint, Message: " + ex.getMessage());
         }
         return sb.toString();
+    }
+
+    public void printBeforeAfter(String status, String tableName, String beforeRelation){
+        System.out.println(status);
+        System.out.println(tableName + " relation; BEFORE:");
+        System.out.print(beforeRelation);
+        System.out.println(tableName + " relation; AFTER");
+        System.out.print(getRelationPrint(tableName));
     }
 
 
