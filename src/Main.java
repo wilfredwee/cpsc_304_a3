@@ -318,6 +318,7 @@ public class Main implements ActionListener {
                 System.out.print("1.  Insert item\n");
                 System.out.print("2.  Insert book item\n");
                 System.out.print("3.  Back\n");
+                System.out.print(">> ");
 
                 choice = Integer.parseInt(in.readLine());
 
