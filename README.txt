@@ -1,3 +1,5 @@
+**ONLY WORKS IN A GUI ENVIRONMENT**
+
 To compile:
 1. cd to src folder.
 2. run 'make'
