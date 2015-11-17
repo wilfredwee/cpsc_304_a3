@@ -1,5 +1,5 @@
 all:
-	javac -cp "classes12.jar;hb15.jar" Main.java Tuple.java
+	javac -cp "classes12.jar" Main.java Tuple.java
 	jar cvfe Main.jar Main *.class
 
 run: Main.jar
