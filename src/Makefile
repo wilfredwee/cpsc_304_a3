@@ -1,9 +1,9 @@
 all:
-  javac src/Main.java
-  jar cvfe Main.jar Main *.class
+	javac -cp "classes12.jar;hb15.jar" Main.java Tuple.java
+	jar cvfe Main.jar Main *.class
 
 run: Main.jar
-  java -jar Main.jar
+	java -cp Main.jar;classes12.jar;hb15.jar Main
 clean:
-  rm -f *.class
-  rm -f Main.jar
+	rm -f *.class
+	rm -f Main.jar

@@ -241,7 +241,7 @@ public class Main implements ActionListener {
         PreparedStatement ps = null;
 
         try {
-            ps = con.prepareStatement("INSERT INTO item VALUES (?,?,?,?");
+            ps = con.prepareStatement("INSERT INTO item VALUES (?,?,?,?)");
 
 
             System.out.print("\nItem UPC: ");
@@ -360,6 +360,7 @@ public class Main implements ActionListener {
         }
 
         boolean canDelete = checkCanDeleteItem(upc);
+        boolean isBook = checkIsBook(upc);
 
         if(!canDelete) {
             printBeforeAfter("Cancelled.", "item", beforeRelation);
@@ -367,6 +368,10 @@ public class Main implements ActionListener {
         }
 
         try {
+            if(isBook) {
+                deleteBook(upc);
+            }
+
             ps = con.prepareStatement("DELETE FROM item WHERE upc = '" + upc + "'");
 
             int rowCount = ps.executeUpdate();
@@ -380,7 +385,6 @@ public class Main implements ActionListener {
 
             printBeforeAfter("Success.", "item", beforeRelation);
 
-            deleteBook(upc);
         }
         catch(SQLException ex) {
             try {
@@ -418,9 +422,26 @@ public class Main implements ActionListener {
         return false;
     }
 
+    public boolean checkIsBook(String upc) {
+        Statement statement;
+        ResultSet rs;
+
+        try {
+            statement = con.createStatement();
+            rs = statement.executeQuery("SELECT * FROM book WHERE upc = '" + upc + "'");
+
+            return rs.next();
+        }
+        catch(SQLException ex) {
+            System.out.println("Exception at getRelationPrint, Message: " + ex.getMessage());
+        }
+
+        return false;
+    }
+
     public void deleteBook(String upc) {
         try {
-            PreparedStatement ps = con.prepareStatement("DELETE FROM book WHERE book_upc = '" + upc + "'");
+            PreparedStatement ps = con.prepareStatement("DELETE FROM book WHERE upc = '" + upc + "'");
             ps.executeUpdate();
             con.commit();
             ps.close();
