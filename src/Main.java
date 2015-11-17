@@ -180,6 +180,8 @@ public class Main implements ActionListener {
                 System.out.print("\n\nPlease choose one of the following: \n");
                 System.out.print("1.  Insert item\n");
                 System.out.print("2.  Remove item\n");
+                System.out.print("3.  Print part 3\n");
+                System.out.print("4.  Print part 4\n");
                 System.out.print("5.  Quit\n>> ");
 
                 choice = Integer.parseInt(in.readLine());
@@ -193,6 +195,12 @@ public class Main implements ActionListener {
                         break;
                     case 2:
                         deleteItem();
+                        break;
+                    case 3:
+                        part3();
+                        break;
+                    case 4:
+                        part4();
                         break;
                     case 5:
                         quit = true;
@@ -463,36 +471,42 @@ public class Main implements ActionListener {
     public String getRelationPrint(String tableName) {
         Statement statement;
         ResultSet rs;
-        StringBuilder sb = new StringBuilder();
 
         try {
             statement = con.createStatement();
             rs = statement.executeQuery("SELECT * FROM " + tableName);
 
-            ResultSetMetaData resultSetMetaData = rs.getMetaData();
-
-            int numCols = resultSetMetaData.getColumnCount();
-            sb.append("\n");
-
-            for(int i=1; i<=numCols; i++) {
-                sb.append(String.format("%-15s", resultSetMetaData.getColumnName(i)));
-            }
-
-            sb.append("\n");
-
-            while(rs.next()) {
-                for(int i=1; i<=numCols; i++) {
-                    sb.append(String.format("%-15s", rs.getString(i)));
-                }
-                sb.append("\n");
-            }
-
-            sb.append("\n");
+            return getResultSetPrint(rs).toString();
         }
         catch(SQLException ex) {
             System.out.println("Exception at getRelationPrint, Message: " + ex.getMessage());
         }
-        return sb.toString();
+
+        return null;
+    }
+
+    public StringBuilder getResultSetPrint(ResultSet rs) throws SQLException {
+        StringBuilder sb = new StringBuilder();
+        ResultSetMetaData resultSetMetaData = rs.getMetaData();
+
+        int numCols = resultSetMetaData.getColumnCount();
+        sb.append("\n");
+
+        for(int i=1; i<=numCols; i++) {
+            sb.append(String.format("%-15s", resultSetMetaData.getColumnName(i)));
+        }
+
+        sb.append("\n");
+
+        while(rs.next()) {
+            for(int i=1; i<=numCols; i++) {
+                sb.append(String.format("%-15s", rs.getString(i)));
+            }
+            sb.append("\n");
+        }
+
+        sb.append("\n");
+        return sb;
     }
 
     public void printBeforeAfter(String status, String tableName, String beforeRelation){
@@ -504,6 +518,137 @@ public class Main implements ActionListener {
     }
 
 
+    public void part3() {
+        Statement statement;
+        ResultSet resultSet;
+
+        String item_book_view = "create or replace view item_book as" +
+                "  select i.upc" +
+                "  from item i, book b" +
+                "  where i.upc = b.upc";
+
+        String book_itemPurchase_view = "create or replace view book_itemPurchase as" +
+                "  select ip.upc, ip.t_id, ip.quantity" +
+                "  from itempurchase ip, item_book ib" +
+                "  where ip.upc = ib.upc";
+
+        String book_withinDateNQuantity_view = "create or replace view book_withinDateNQuantity as" +
+                "  select bip.upc" +
+                "  from book_itemPurchase bip, purchase p" +
+                "  where bip.t_id = p.t_id" +
+                "  and" +
+                "  p.purchaseDate >= TO_DATE('2015-10-25', 'YYYY-MM-DD')" +
+                "  and" +
+                "  p.purchaseDate <= TO_DATE('2015-10-31', 'YYYY-MM-DD')" +
+                "  group by bip.upc" +
+                "  having sum(quantity) > 50";
+
+        String bdq_isTextbook_view = "create or replace view bdq_isTextbook as" +
+                "  select b.upc" +
+                "  from book b, book_withinDateNQuantity bdq" +
+                "  where b.upc = bdq.upc" +
+                "  and b.flag_text = 'y'";
+
+        String bdq_lessStock_view = "create or replace view book_lessStock as" +
+                "  select b.upc" +
+                "  from book b, item i" +
+                "  where b.upc = i.upc" +
+                "  and" +
+                "  i.stock < 10";
+
+        String finalSelectStatement = "select *" +
+                " from book b" +
+                " where b.upc in (" +
+                "  select bls.upc" +
+                "  from book_lessStock bls, bdq_isTextbook bdqt" +
+                "  where bls.upc = bdqt.upc" +
+                ")";
+
+        try {
+            statement = con.createStatement();
+            statement.addBatch(item_book_view);
+            statement.addBatch(book_itemPurchase_view);
+            statement.addBatch(book_withinDateNQuantity_view);
+            statement.addBatch(bdq_isTextbook_view);
+            statement.addBatch(bdq_lessStock_view);
+
+            statement.executeBatch();
+            con.commit();
+        }
+        catch(SQLException ex) {
+            // TODO
+            System.out.println("YOLO");
+        }
+
+        try {
+            statement = con.createStatement();
+            resultSet = statement.executeQuery(finalSelectStatement);
+            System.out.print(getResultSetPrint(resultSet));
+        }
+        catch(SQLException ex) {
+            // TODO
+            System.out.println(ex.getMessage());
+        }
+    }
+
+    public void part4() {
+        Statement statement;
+        ResultSet resultSet;
+
+        String item_withinDate_view = "create or replace view item_withinDate as" +
+                "  select ip.upc, p.t_id" +
+                "  from itemPurchase ip, purchase p" +
+                "  where p.t_id = ip.t_id" +
+                "  and" +
+                "  p.purchaseDate >= TO_DATE('2015-10-25', 'YYYY-MM-DD')" +
+                "  and" +
+                "  p.purchaseDate <= TO_DATE('2015-10-31', 'YYYY-MM-DD')";
+
+        String salessum_view = "create or replace view salessum_withindate as" +
+                "  select ip.upc, sum(ip.quantity * i.sellingPrice) as salesSum" +
+                "  from item i, itemPurchase ip" +
+                "  where i.upc = ip.upc" +
+                "  and ip.t_id in (" +
+                "    select t_id" +
+                "    from item_withinDate" +
+                "    )" +
+                "  group by ip.upc";
+
+        String selectStatement = "select *" +
+                " from item i" +
+                " where i.upc in (" +
+                "  select upc" +
+                "  from (" +
+                "    select *" +
+                "    from salessum_withindate sswd" +
+                "    order by sswd.salesSum desc" +
+                "  )" +
+                "  where rownum <= 3" +
+                ")";
+        try {
+            statement = con.createStatement();
+            statement.addBatch(salessum_view);
+            statement.addBatch(item_withinDate_view);
+
+            statement.executeBatch();
+            con.commit();
+        }
+        catch(SQLException ex) {
+            // TODO
+            System.out.println("YOLO");
+        }
+
+        try {
+            statement = con.createStatement();
+            resultSet = statement.executeQuery(selectStatement);
+            System.out.print(getResultSetPrint(resultSet));
+        }
+        catch(SQLException ex) {
+            // TODO
+            System.out.println(ex.getMessage());
+        }
+
+    }
 
     public static void main(String[] args) {
         Main m = new Main();
